@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Codex IDD Packet Selector</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fff;color:#1a1a1a}
+.c{max-width:640px;margin:0 auto;padding:16px}
+.title{font-size:18px;font-weight:700;margin-bottom:4px}
+.subtitle{font-size:13px;color:#888;margin-bottom:16px}
+.phase{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.8px;margin:18px 0 8px}
+.card{background:#fff;border:1.5px solid #e0e0e0;border-radius:10px;padding:16px 18px;margin-bottom:10px;transition:all .2s}
+.card.active{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.1)}
+.card.done{opacity:.45;pointer-events:none}
+.card.hidden{display:none}
+.card-label{font-size:14px;font-weight:500;color:#1a1a1a;margin-bottom:10px}
+.input-wrap{position:relative}
+.input-wrap input{width:100%;padding:9px 12px;border:1.5px solid #d0d0d0;border-radius:7px;font-size:14px;background:#fff;color:#1a1a1a;outline:none}
+.input-wrap input:focus{border-color:#6366f1}
+.ac-list{position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1.5px solid #d0d0d0;border-top:none;border-radius:0 0 7px 7px;z-index:10;display:none}
+.ac-list.open{display:block}
+.ac-item{padding:8px 12px;font-size:13px;cursor:pointer;color:#1a1a1a}
+.ac-item:hover{background:rgba(99,102,241,.06)}
+.ac-item .tag{font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;margin-left:6px}
+.tag-blocked{background:#fecaca;color:#991b1b}
+.tag-highrisk{background:#fef3c7;color:#92400e}
+.tag-ok{background:#dcfce7;color:#166534}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:8px 16px;border-radius:7px;border:1.5px solid #d0d0d0;background:#fff;color:#1a1a1a;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
+.btn:hover{border-color:#6366f1}
+.btn.sel{background:#6366f1;color:#fff;border-color:#6366f1}
+.match-tag{display:inline-block;font-size:12px;font-weight:600;padding:3px 8px;border-radius:5px;margin-top:8px}
+.out{border-radius:10px;padding:16px 18px;margin-top:8px;font-size:14px;line-height:1.5}
+.out.stop{background:#fef2f2;border:1.5px solid #ef4444}
+.out.stop .ol{color:#ef4444}
+.out.pause{background:#fffbeb;border:1.5px solid #f59e0b}
+.out.pause .ol{color:#b45309}
+.out.pkt{background:#f0fdf4;border:1.5px solid #22c55e}
+.out.pkt .ol{color:#16a34a}
+.out.pobo{background:#eff6ff;border:1.5px solid #3b82f6;margin-top:8px}
+.out.pobo .ol{color:#2563eb}
+.ol{font-weight:700;font-size:15px;display:block;margin-bottom:4px}
+.od{color:#555}
+.steps-box{margin-top:10px;padding:12px 14px;border-radius:8px;border:1.5px solid #e0e0e0;font-size:13px;color:#555;line-height:1.7}
+.steps-box strong{color:#1a1a1a}
+.reset{display:inline-block;margin-top:14px;padding:7px 14px;font-size:13px;font-weight:500;color:#666;border:1px solid #d0d0d0;border-radius:6px;background:transparent;cursor:pointer}
+.reset:hover{border-color:#6366f1}
+.hidden{display:none}
+.summary{font-size:12px;color:#888;margin:14px 0 4px;min-height:16px}
+</style>
+</head>
+<body>
+<div class="c">
+<div class="title">Codex IDD & Packet Selector</div>
+<div class="subtitle">Answer each step to determine the correct KYB packet for your client.</div>
+<div class="summary" id="trail"></div>
+
+<div class="phase" id="p1">Step 1: Country Check</div>
+<div class="card active" id="s1">
+  <div class="card-label">Client's country of incorporation</div>
+  <div class="input-wrap">
+    <input id="country-in" placeholder="Start typing country name..." autocomplete="off" oninput="filterCountry()" onfocus="filterCountry()">
+    <div class="ac-list" id="country-ac"></div>
+  </div>
+  <div id="country-result"></div>
+</div>
+
+<div class="phase hidden" id="p2">Step 2: Industry Check</div>
+<div class="card hidden" id="s2">
+  <div class="card-label">Client's primary industry / sector</div>
+  <div class="input-wrap">
+    <input id="ind-in" placeholder="Start typing industry..." autocomplete="off" oninput="filterInd()" onfocus="filterInd()">
+    <div class="ac-list" id="ind-ac"></div>
+  </div>
+  <div id="ind-result"></div>
+</div>
+
+<div class="phase hidden" id="p3">Step 3: Transaction Rails</div>
+<div class="card hidden" id="s3">
+  <div class="card-label">What rails does this client need?</div>
+  <div class="btn-row">
+    <button class="btn" onclick="pickRails('crypto')">Crypto only (no fiat)</button>
+    <button class="btn" onclick="pickRails('fiat')">Fiat involved</button>
+  </div>
+</div>
+
+<div class="phase hidden" id="p4">Step 4: Third-Party Arrangement</div>
+<div class="card hidden" id="s4">
+  <div class="card-label">Does this client process transactions on behalf of third-party end-users?</div>
+  <div class="btn-row">
+    <button class="btn" onclick="pick3P('yes')">Yes — 3P arrangement</button>
+    <button class="btn" onclick="pick3P('no')">No — Direct client</button>
+  </div>
+</div>
+
+<div class="phase hidden" id="p5">Step 5: Named Payout Account</div>
+<div class="card hidden" id="s5">
+  <div class="card-label">Does this client (or their end-clients) need a named payout account (e.g. named IBAN)?</div>
+  <div class="btn-row">
+    <button class="btn" onclick="pickPOBO('yes')">Yes — POBO needed</button>
+    <button class="btn" onclick="pickPOBO('no')">No</button>
+  </div>
+</div>
+
+<div id="outcome"></div>
+<button class="reset hidden" id="rbtn" onclick="doReset()">Start over</button>
+</div>
+
+<script>
+const BLOCKED=["Afghanistan","Belarus","Bosnia and Herzegovina","Burundi","Central African Republic","Congo (DRC)","Iran","Iraq","North Korea","Lebanon","Libya","Montenegro","Myanmar","Russian Federation","Somalia","South Sudan","Sudan","Syria","Venezuela","Yemen","Zimbabwe"];
+const HIGH_RISK_J=["Albania","Algeria","American Samoa","Anguilla","Aruba","Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belize","Benin","Bolivia","Botswana","British Indian Ocean Territory","Brunei Darussalam","Bulgaria","Burkina Faso","Cambodia","Cameroon","Canada","Cape Verde","Cayman Islands","Chad","Chile","Cocos (Keeling) Islands","Colombia","Comoros","Congo (Brazzaville)","Cook Islands","Côte d'Ivoire","Cuba","Djibouti","Dominican Republic","Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Ethiopia","Fiji","French Polynesia","Gabon","Gambia","Georgia","Ghana","Guam","Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti","Honduras","India","Indonesia","Jamaica","Jordan","Kazakhstan","Kenya","Kosovo","Kuwait","Kyrgyzstan","Lao PDR","Lesotho","Liberia","Madagascar","Malawi","Maldives","Mali","Marshall Islands","Mauritania","Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Morocco","Mozambique","Namibia","Nepal","Nicaragua","Niger","Nigeria","Oman","Pakistan","Palau","Panama","Papua New Guinea","Paraguay","Peru","Philippines","Qatar","Rwanda","Samoa","São Tomé and Príncipe","Saudi Arabia","Senegal","Serbia","Seychelles","Sierra Leone","Solomon Islands","South Africa","Sri Lanka","Suriname","Eswatini","Tajikistan","Tanzania","Thailand","Timor-Leste","Togo","Tonga","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Tuvalu","Uganda","Ukraine","United Arab Emirates","Uruguay","Uzbekistan","Vanuatu","Vietnam","Zambia"];
+const RESTRICTED_J=["United States","United Kingdom","Singapore"];
+const OK_COUNTRIES=["Andorra","Antigua and Barbuda","Argentina","Armenia","Australia","Austria","Belgium","Bermuda","Bhutan","Brazil","Brunei","China","Croatia","Cyprus","Czech Republic","Czechia","Denmark","Dominica","Estonia","Finland","France","Germany","Greece","Grenada","Hong Kong","Hungary","Iceland","Ireland","Israel","Italy","Japan","Latvia","Liechtenstein","Lithuania","Luxembourg","Malaysia","Malta","Netherlands","New Zealand","Norway","Poland","Portugal","Romania","Russia","Saint Kitts and Nevis","Saint Lucia","Saint Vincent and the Grenadines","San Marino","Slovakia","Slovenia","South Korea","Spain","Sweden","Switzerland","Taiwan"];
+const ALL_COUNTRIES=[...BLOCKED,...HIGH_RISK_J,...RESTRICTED_J,...OK_COUNTRIES].sort();
+
+const PROHIBITED_IND=["Shell banks or shell companies","Unregistered money services businesses","Cryptocurrency mixers or tumblers","Anonymous payment services","Unlicensed gambling operations","Predatory lending services","Dealers in illegal weapons or munitions","Dealers in illegal drugs or controlled substances","Providers of counterfeit goods or services","Businesses primarily transacting in cryptocurrency privacy coins","Operations on anonymous or privacy-focused platforms","Businesses facilitating tax evasion or sanctions evasion"];
+const HIGH_RISK_IND=["Financial Services","Banks","Capital Markets","Consumer Finance","Diversified REITs","Health Care REITs","Hotel & Resort REITs","Industrial REITs","Mortgage REITs","Office REITs","Real Estate Management & Development","Residential REITs","Retail REITs","Specialty REITs","Legal & Consultancy Services"];
+const RESTRICTED_IND=["Religious organizations / charities / NPOs","Virtual asset service providers (VASPs)","Entities selling controlled substances (licensed)","Businesses in high-risk activities per local regulation"];
+const OK_IND=["Technology","Software","E-commerce","Retail","Manufacturing","Healthcare","Education","Consulting","Media & Entertainment","Telecommunications","Transportation & Logistics","Energy","Agriculture","Hospitality","Food & Beverage","Construction","Mining","Aerospace","Automotive","Pharmaceuticals","Insurance","Professional Services","Marketing & Advertising","Non-profit (transparent governance)","Government","Payments","Crypto Exchange","Fintech","Other"];
+const ALL_IND=[...PROHIBITED_IND,...HIGH_RISK_IND,...RESTRICTED_IND,...OK_IND];
+
+let st={country:null,countryRisk:null,industry:null,indRisk:null,rails:null,is3P:null,pobo:null};
+const trail=[];
+
+function updTrail(){document.getElementById('trail').innerHTML=trail.join(' → ')}
+
+function classifyCountry(c){
+  if(BLOCKED.some(b=>b.toLowerCase()===c.toLowerCase()))return'blocked';
+  if(RESTRICTED_J.some(b=>b.toLowerCase()===c.toLowerCase()))return'restricted_serve';
+  if(HIGH_RISK_J.some(b=>b.toLowerCase()===c.toLowerCase()))return'high_risk';
+  return'standard';
+}
+function classifyInd(i){
+  if(PROHIBITED_IND.some(b=>b.toLowerCase()===i.toLowerCase()))return'prohibited';
+  if(RESTRICTED_IND.some(b=>b.toLowerCase()===i.toLowerCase()))return'restricted';
+  if(HIGH_RISK_IND.some(b=>b.toLowerCase()===i.toLowerCase()))return'high_risk';
+  return'standard';
+}
+
+function tagHTML(risk){
+  const m={blocked:['BLOCKED','tag-blocked'],high_risk:['HIGH RISK','tag-highrisk'],restricted_serve:['RESTRICTED (RS)','tag-highrisk'],standard:['STANDARD','tag-ok'],prohibited:['PROHIBITED','tag-blocked'],restricted:['RESTRICTED','tag-highrisk']};
+  const[t,cls]=m[risk]||['UNKNOWN',''];
+  return'<span class="tag '+cls+'">'+t+'</span>';
+}
+
+function filterCountry(){
+  var v=document.getElementById('country-in').value.trim().toLowerCase();
+  var ac=document.getElementById('country-ac');
+  if(!v){ac.classList.remove('open');ac.innerHTML='';return}
+  var matches=ALL_COUNTRIES.filter(function(c){return c.toLowerCase().includes(v)}).slice(0,8);
+  if(!matches.length){ac.classList.remove('open');return}
+  ac.innerHTML=matches.map(function(c){var r=classifyCountry(c);return'<div class="ac-item" onclick="selectCountry(\''+c.replace(/'/g,"\\'")+'\',\''+r+'\')">'+c+tagHTML(r)+'</div>'}).join('');
+  ac.classList.add('open');
+}
+
+function selectCountry(c,r){
+  st.country=c;st.countryRisk=r;
+  document.getElementById('country-in').value=c;
+  document.getElementById('country-ac').classList.remove('open');
+  var res=document.getElementById('country-result');
+
+  if(r==='blocked'){
+    trail.push(c+' 🔴');updTrail();
+    res.innerHTML='<div class="match-tag" style="background:#fecaca;color:#991b1b">BLOCKED JURISDICTION</div>';
+    done('s1');
+    showStop('BLOCKED — Do Not Proceed',c+' is on the Blocked Jurisdictions list. Do not proceed. Notify Compliance immediately.');
+    return;
+  }
+  if(r==='restricted_serve'){
+    trail.push(c+' ⚠️ RS');updTrail();
+    res.innerHTML='<div class="match-tag" style="background:#fef3c7;color:#92400e">RESTRICTED — Reverse Solicitation Only</div>';
+  } else if(r==='high_risk'){
+    trail.push(c+' ⚠️ HR');updTrail();
+    res.innerHTML='<div class="match-tag" style="background:#fef3c7;color:#92400e">HIGH RISK JURISDICTION — Packet C will apply if fiat</div>';
+  } else {
+    trail.push(c+' ✓');updTrail();
+    res.innerHTML='<div class="match-tag" style="background:#dcfce7;color:#166534">STANDARD JURISDICTION</div>';
+  }
+  done('s1');show('p2');show('s2');
+}
+
+function filterInd(){
+  var v=document.getElementById('ind-in').value.trim().toLowerCase();
+  var ac=document.getElementById('ind-ac');
+  if(!v){ac.classList.remove('open');ac.innerHTML='';return}
+  var matches=ALL_IND.filter(function(i){return i.toLowerCase().includes(v)}).slice(0,8);
+  if(!matches.length){ac.classList.remove('open');return}
+  ac.innerHTML=matches.map(function(i){var r=classifyInd(i);return'<div class="ac-item" onclick="selectInd(\''+i.replace(/'/g,"\\'")+'\',\''+r+'\')">'+i+tagHTML(r)+'</div>'}).join('');
+  ac.classList.add('open');
+}
+
+function selectInd(i,r){
+  st.industry=i;st.indRisk=r;
+  document.getElementById('ind-in').value=i;
+  document.getElementById('ind-ac').classList.remove('open');
+  var res=document.getElementById('ind-result');
+
+  if(r==='prohibited'){
+    trail.push('Industry 🔴');updTrail();
+    res.innerHTML='<div class="match-tag" style="background:#fecaca;color:#991b1b">PROHIBITED SECTOR</div>';
+    done('s2');
+    showStop('BLOCKED — Prohibited Sector','"'+i+'" is a prohibited sector. Do not proceed. Notify Compliance immediately.');
+    return;
+  }
+  if(r==='restricted'){
+    trail.push('Industry ⚠️');updTrail();
+    res.innerHTML='<div class="match-tag" style="background:#fef3c7;color:#92400e">RESTRICTED — Compliance Pre-Approval Required</div>';
+    done('s2');
+    showPause('"'+i+'" is a restricted category. Do not proceed until Compliance grants written pre-approval. If approved, continue below.');
+    show('p3');show('s3');
+    return;
+  }
+  if(r==='high_risk'){
+    trail.push('Industry ⚠️ HR');updTrail();
+    res.innerHTML='<div class="match-tag" style="background:#fef3c7;color:#92400e">HIGH RISK INDUSTRY — Packet C will apply if fiat</div>';
+  } else {
+    trail.push('Industry ✓');updTrail();
+    res.innerHTML='<div class="match-tag" style="background:#dcfce7;color:#166534">STANDARD INDUSTRY</div>';
+  }
+  done('s2');show('p3');show('s3');
+}
+
+function pickRails(r){
+  st.rails=r;
+  document.getElementById('s3').querySelectorAll('.btn').forEach(function(b){
+    if((r==='crypto'&&b.textContent.includes('Crypto'))||(r==='fiat'&&b.textContent.includes('Fiat')))b.classList.add('sel');
+    b.disabled=true;
+  });
+  trail.push(r==='crypto'?'Crypto':'Fiat');updTrail();
+  done('s3');show('p4');show('s4');
+}
+
+function pick3P(v){
+  st.is3P=v==='yes';
+  document.getElementById('s4').querySelectorAll('.btn').forEach(function(b){
+    if((v==='yes'&&b.textContent.includes('Yes'))||(v==='no'&&b.textContent.includes('No')))b.classList.add('sel');
+    b.disabled=true;
+  });
+  if(st.is3P)trail.push('3P');updTrail();
+  done('s4');
+
+  if(st.rails==='crypto'&&!st.is3P){
+    showFinal();return;
+  }
+  show('p5');show('s5');
+}
+
+function pickPOBO(v){
+  st.pobo=v==='yes';
+  document.getElementById('s5').querySelectorAll('.btn').forEach(function(b){
+    if((v==='yes'&&b.textContent.includes('Yes'))||(v==='no'&&b.textContent.includes('No')))b.classList.add('sel');
+    b.disabled=true;
+  });
+  if(st.pobo)trail.push('POBO');updTrail();
+  done('s5');showFinal();
+}
+
+function isHighRisk(){return st.countryRisk==='high_risk'||st.indRisk==='high_risk'}
+
+function getPacket(){
+  if(st.rails==='crypto')return{pkt:'A',name:'Packet A — Simplified KYB (Crypto-Crypto)',entity:'Holograph Holdings (Panama)'};
+  if(isHighRisk())return{pkt:'C',name:'Packet C — Enhanced KYB (High Risk, Fiat)',entity:'Codex Financial (US)'};
+  return{pkt:'B',name:'Packet B — Standard KYB (Fiat)',entity:'Codex Financial (US)'};
+}
+
+function showStop(label,detail){
+  document.getElementById('outcome').innerHTML='<div class="out stop"><span class="ol">'+label+'</span><span class="od">'+detail+'</span></div>';
+  document.getElementById('rbtn').classList.remove('hidden');
+}
+
+function showPause(detail){
+  document.getElementById('outcome').innerHTML='<div class="out pause"><span class="ol">PAUSE — Compliance Pre-Approval Required</span><span class="od">'+detail+'</span></div>';
+}
+
+function showFinal(){
+  var p=getPacket();
+  var h='<div class="out pkt"><span class="ol">'+p.name+'</span><span class="od">Onboard to: <strong>'+p.entity+'</strong></span>';
+
+  if(st.is3P&&st.rails==='crypto'){
+    h+='<div style="margin-top:8px;padding-top:8px;border-top:1px solid #bbf7d0"><strong>3P Crypto:</strong> Client completes the 3P add-on section within Packet A. Check if client has own AML capabilities (outsourced KYB) or if Codex onboards each end-user individually.</div>';
+  }else if(st.is3P){
+    h+='<div style="margin-top:8px;padding-top:8px;border-top:1px solid #bbf7d0"><strong>3P Fiat:</strong> Use Packet '+p.pkt+' with the 3P Fiat add-on section. AML/CFT policy document required. Create tickets on the <strong>3P Sub-Client Tracker</strong> for each end-client.</div>';
+  }
+  h+='</div>';
+
+  if(st.pobo){
+    h+='<div class="out pobo"><span class="ol">POBO Required</span><span class="od">Send POBO Form (Part 1) → get signed → merge with POBO Annex (Part 2) → upload to client folder. Tick "Is POBO Required" on the CDD ticket.</span></div>';
+  }
+
+  h+='<div class="steps-box"><strong>What to do now:</strong><br>';
+  h+='1. Create ticket on <strong>KYC/KYB Tracker</strong> → Stage: Draft<br>';
+  h+='2. Set Client Type: <strong>'+(st.is3P?'3rd Party':'1st Party')+'</strong><br>';
+  h+='3. Set KYB Packet: <strong>'+p.pkt+'</strong><br>';
+  h+='4. Set Codex Entity: <strong>'+p.entity+'</strong><br>';
+  if(st.is3P)h+='5. Tick <strong>"Is Parent Account"</strong> on the CDD ticket<br>6. Create sub-client tickets on <strong>3P Sub-Client Tracker</strong> → link to parent<br>';
+  if(st.pobo)h+=(st.is3P?'7':'5')+'. Tick <strong>"Is POBO Required"</strong> on the CDD ticket<br>';
+  h+='</div>';
+
+  document.getElementById('outcome').innerHTML=h;
+  document.getElementById('rbtn').classList.remove('hidden');
+}
+
+function show(id){document.getElementById(id).classList.remove('hidden');var el=document.getElementById(id);if(el.classList.contains('card'))el.classList.add('active');el.scrollIntoView({behavior:'smooth',block:'nearest'})}
+function done(id){var el=document.getElementById(id);el.classList.remove('active');el.classList.add('done')}
+
+function doReset(){
+  st={country:null,countryRisk:null,industry:null,indRisk:null,rails:null,is3P:null,pobo:null};
+  trail.length=0;updTrail();
+  document.getElementById('outcome').innerHTML='';
+  document.getElementById('rbtn').classList.add('hidden');
+  document.getElementById('country-in').value='';
+  document.getElementById('ind-in').value='';
+  document.getElementById('country-result').innerHTML='';
+  document.getElementById('ind-result').innerHTML='';
+  document.querySelectorAll('.card').forEach(function(c){c.classList.add('hidden');c.classList.remove('active','done');c.querySelectorAll('.btn').forEach(function(b){b.classList.remove('sel');b.disabled=false})});
+  document.querySelectorAll('.phase').forEach(function(p){if(p.id!=='p1')p.classList.add('hidden')});
+  document.getElementById('s1').classList.remove('hidden');
+  document.getElementById('s1').classList.add('active');
+  document.querySelectorAll('.ac-list').forEach(function(a){a.classList.remove('open');a.innerHTML=''});
+}
+
+document.addEventListener('click',function(e){
+  if(!e.target.closest('.input-wrap'))document.querySelectorAll('.ac-list').forEach(function(a){a.classList.remove('open')});
+});
+</script>
+</body>
+</html>
