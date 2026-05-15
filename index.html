@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Codex IDD Packet Selector</title>
+<title>Codex IDD & KYB Packet Selector</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fff;color:#1a1a1a}
@@ -26,6 +26,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .ac-item .tag{font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;margin-left:6px}
 .tag-blocked{background:#fecaca;color:#991b1b}
 .tag-highrisk{background:#fef3c7;color:#92400e}
+.tag-medium{background:#e0e7ff;color:#3730a3}
 .tag-ok{background:#dcfce7;color:#166534}
 .btn-row{display:flex;gap:8px;flex-wrap:wrap}
 .btn{padding:8px 16px;border-radius:7px;border:1.5px solid #d0d0d0;background:#fff;color:#1a1a1a;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
@@ -53,7 +54,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </head>
 <body>
 <div class="c">
-<div class="title">Codex IDD & Packet Selector</div>
+<div class="title">Codex IDD & KYB Packet Selector</div>
 <div class="subtitle">Answer each step to determine the correct KYB packet for your client.</div>
 <div class="summary" id="trail"></div>
 
@@ -71,7 +72,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div class="card hidden" id="s2">
   <div class="card-label">Client's primary industry / sector</div>
   <div class="input-wrap">
-    <input id="ind-in" placeholder="Start typing industry..." autocomplete="off" oninput="filterInd()" onfocus="filterInd()">
+    <input id="ind-in" placeholder="Start typing industry..." autocomplete="off" oninput="filterInd()" onfocus="filterInd()" onkeydown="if(event.key==='Enter'){event.preventDefault();var m=ALL_IND.filter(function(i){return i.toLowerCase().includes(this.value.trim().toLowerCase())});if(m.length===1){var r=classifyInd(m[0]);selectInd(m[0],r)}}" onblur="setTimeout(function(){var el=document.getElementById('ind-in');if(el.value&&!ALL_IND.some(function(i){return i.toLowerCase()===el.value.trim().toLowerCase()})){showIndHint('Please select an industry from the dropdown')}},200)">
     <div class="ac-list" id="ind-ac"></div>
   </div>
   <div id="ind-result"></div>
@@ -109,27 +110,141 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <script>
-const BLOCKED=["Afghanistan","Belarus","Bosnia and Herzegovina","Burundi","Central African Republic","Congo (DRC)","Iran","Iraq","North Korea","Lebanon","Libya","Montenegro","Myanmar","Russian Federation","Somalia","South Sudan","Sudan","Syria","Venezuela","Yemen","Zimbabwe"];
-const HIGH_RISK_J=["Albania","Algeria","American Samoa","Anguilla","Aruba","Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belize","Benin","Bolivia","Botswana","British Indian Ocean Territory","Brunei Darussalam","Bulgaria","Burkina Faso","Cambodia","Cameroon","Canada","Cape Verde","Cayman Islands","Chad","Chile","Cocos (Keeling) Islands","Colombia","Comoros","Congo (Brazzaville)","Cook Islands","Côte d'Ivoire","Cuba","Djibouti","Dominican Republic","Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Ethiopia","Fiji","French Polynesia","Gabon","Gambia","Georgia","Ghana","Guam","Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti","Honduras","India","Indonesia","Jamaica","Jordan","Kazakhstan","Kenya","Kosovo","Kuwait","Kyrgyzstan","Lao PDR","Lesotho","Liberia","Madagascar","Malawi","Maldives","Mali","Marshall Islands","Mauritania","Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Morocco","Mozambique","Namibia","Nepal","Nicaragua","Niger","Nigeria","Oman","Pakistan","Palau","Panama","Papua New Guinea","Paraguay","Peru","Philippines","Qatar","Rwanda","Samoa","São Tomé and Príncipe","Saudi Arabia","Senegal","Serbia","Seychelles","Sierra Leone","Solomon Islands","South Africa","Sri Lanka","Suriname","Eswatini","Tajikistan","Tanzania","Thailand","Timor-Leste","Togo","Tonga","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Tuvalu","Uganda","Ukraine","United Arab Emirates","Uruguay","Uzbekistan","Vanuatu","Vietnam","Zambia"];
-const RESTRICTED_J=["United States","United Kingdom","Singapore"];
-const OK_COUNTRIES=["Andorra","Antigua and Barbuda","Argentina","Armenia","Australia","Austria","Belgium","Bermuda","Bhutan","Brazil","Brunei","China","Croatia","Cyprus","Czech Republic","Czechia","Denmark","Dominica","Estonia","Finland","France","Germany","Greece","Grenada","Hong Kong","Hungary","Iceland","Ireland","Israel","Italy","Japan","Latvia","Liechtenstein","Lithuania","Luxembourg","Malaysia","Malta","Netherlands","New Zealand","Norway","Poland","Portugal","Romania","Russia","Saint Kitts and Nevis","Saint Lucia","Saint Vincent and the Grenadines","San Marino","Slovakia","Slovenia","South Korea","Spain","Sweden","Switzerland","Taiwan"];
-const ALL_COUNTRIES=[...BLOCKED,...HIGH_RISK_J,...RESTRICTED_J,...OK_COUNTRIES].sort();
+/* ═══════════════════════════════════════════════════════════════════════
+   ██  EDITABLE LISTS — UPDATE THESE WHEN REGULATIONS CHANGE  ██
+   ██  Source: JRA Main - Codex 2026 + Sanctions Review May 2026  ██
 
-const PROHIBITED_IND=["Shell banks or shell companies","Unregistered money services businesses","Cryptocurrency mixers or tumblers","Anonymous payment services","Unlicensed gambling operations","Predatory lending services","Dealers in illegal weapons or munitions","Dealers in illegal drugs or controlled substances","Providers of counterfeit goods or services","Businesses primarily transacting in cryptocurrency privacy coins","Operations on anonymous or privacy-focused platforms","Businesses facilitating tax evasion or sanctions evasion"];
-const HIGH_RISK_IND=["Financial Services","Banks","Capital Markets","Consumer Finance","Diversified REITs","Health Care REITs","Hotel & Resort REITs","Industrial REITs","Mortgage REITs","Office REITs","Real Estate Management & Development","Residential REITs","Retail REITs","Specialty REITs","Legal & Consultancy Services"];
-const RESTRICTED_IND=["Religious organizations / charities / NPOs","Virtual asset service providers (VASPs)","Entities selling controlled substances (licensed)","Businesses in high-risk activities per local regulation"];
-const OK_IND=["Technology","Software","E-commerce","Retail","Manufacturing","Healthcare","Education","Consulting","Media & Entertainment","Telecommunications","Transportation & Logistics","Energy","Agriculture","Hospitality","Food & Beverage","Construction","Mining","Aerospace","Automotive","Pharmaceuticals","Insurance","Professional Services","Marketing & Advertising","Non-profit (transparent governance)","Government","Payments","Crypto Exchange","Fintech","Other"];
+   HOW TO EDIT:
+   - Each list is a comma-separated set of names in "quotes"
+   - To ADD an entry: put a new "Name" anywhere in the list, with a comma
+   - To REMOVE an entry: delete the "Name" and its trailing comma
+   - Keep quotes around each entry and commas between them
+   - Save the file after editing — changes take effect on next page load
+   ═══════════════════════════════════════════════════════════════════════ */
+
+// ── JURISDICTIONS (Source: JRA 2026 + Comprehensive Sanctions Review) ──
+
+// PROHIBITED: Do not onboard. Sales must stop immediately.
+// Basis: Comprehensive international sanctions, FATF blacklist, or business risk.
+const BLOCKED = [
+  "Afghanistan","Cuba","Iran","Iraq","Libya","Myanmar","North Korea",
+  "Russia","Somalia"
+];
+
+// HIGH RISK (JRA Score > 10): Onboard with EDD. Triggers Packet C if fiat.
+const HIGH_RISK_J = [
+  "Albania","Algeria","American Samoa","Angola","Anguilla","Aruba",
+  "Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus",
+  "Belize","Benin","Bolivia","Bosnia and Herzegovina","Botswana",
+  "British Indian Ocean Territory","British Virgin Islands","Brunei Darussalam",
+  "Burkina Faso","Burundi","Cambodia","Cameroon","Cayman Islands",
+  "Central African Republic","Chad","Chile","Cocos (Keeling) Islands",
+  "Colombia","Comoros","Congo (Brazzaville)","Congo (DRC)","Cote d'Ivoire",
+  "Djibouti","Egypt","Equatorial Guinea","Eritrea","Eswatini","Ethiopia",
+  "Falkland Islands","Faroe Islands","Fiji","Gabon","Ghana","Guadeloupe",
+  "Guam","Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti","Honduras",
+  "India","Israel","Jamaica","Jordan","Kazakhstan","Kenya","Kiribati",
+  "Kosovo","Kuwait","Kyrgyzstan","Laos","Lebanon","Liberia","Liechtenstein",
+  "Macau","Madagascar","Malawi","Mali","Marshall Islands","Mayotte",
+  "Micronesia","Monaco","Morocco","Mozambique","Namibia","Nauru","Nepal",
+  "Nicaragua","Niger","Nigeria","Niue","Oman","Pakistan","Palau","Panama",
+  "Papua New Guinea","Philippines","Rwanda","Saudi Arabia","Senegal",
+  "Serbia","Sierra Leone","South Africa","South Sudan","Sudan","Suriname",
+  "Syria","Tajikistan","Tanzania","Thailand","Timor-Leste","Togo",
+  "Tokelau","Tonga","Trinidad and Tobago","Tunisia","Turkmenistan",
+  "Turks and Caicos","Uganda","Ukraine","United Arab Emirates","Uzbekistan",
+  "Vanuatu","Vatican City","Venezuela","Vietnam","West Bank (Palestine)",
+  "Yemen","Zambia","Zimbabwe"
+];
+
+// MEDIUM RISK (JRA Score 7-10): Onboard with standard DD + supplementary checks.
+const MEDIUM_RISK_J = [
+  "Angola","Antarctica","Argentina","Bermuda","Brazil","Bulgaria",
+  "Cape Verde","China","Costa Rica","Croatia","Cyprus",
+  "Dominican Republic","Ecuador","El Salvador","Gambia","Grenada",
+  "Hungary","Indonesia","Lesotho","Malaysia","Mauritania","Moldova",
+  "Mongolia","Montenegro","Montserrat","North Macedonia","Paraguay",
+  "Peru","Puerto Rico","Romania","Sao Tome and Principe","Solomon Islands",
+  "Sri Lanka","St Lucia","Turkey"
+];
+
+// STANDARD (JRA Score <= 6): No enhanced measures needed.
+const OK_COUNTRIES = [
+  "Andorra","Antigua and Barbuda","Armenia","Australia","Austria",
+  "Belgium","Bhutan","Canada","Christmas Island","Cook Islands",
+  "Curacao","Czech Republic","Denmark","Dominica","Estonia","Finland",
+  "France","Georgia","Germany","Gibraltar","Greece","Greenland",
+  "Hong Kong","Iceland","Ireland","Isle of Man","Italy","Japan","Latvia",
+  "Lithuania","Luxembourg","Maldives","Malta","Martinique","Mauritius",
+  "Mexico","Netherlands","New Caledonia","New Zealand","Norfolk Island",
+  "Norway","Poland","Portugal","Qatar","Reunion","Samoa","San Marino",
+  "Seychelles","Singapore","Slovakia","Slovenia","South Korea","Spain",
+  "St Kitts and Nevis","St Vincent and the Grenadines","Sweden",
+  "Switzerland","Taiwan","United Kingdom","United States","Uruguay"
+];
+
+// ── INDUSTRIES / SECTORS ─────────────────────────────────────────────
+
+// PROHIBITED: Do not onboard under any circumstances.
+const PROHIBITED_IND = [
+  "Shell banks or shell companies",
+  "Unregistered money services businesses",
+  "Cryptocurrency mixers or tumblers",
+  "Anonymous payment services",
+  "Unlicensed gambling operations",
+  "Predatory lending services",
+  "Dealers in illegal weapons or munitions",
+  "Dealers in illegal drugs or controlled substances",
+  "Providers of counterfeit goods or services",
+  "Businesses primarily transacting in cryptocurrency privacy coins",
+  "Operations on anonymous or privacy-focused platforms",
+  "Businesses facilitating tax evasion or sanctions evasion"
+];
+
+// HIGH RISK: Triggers Packet C if fiat rails used.
+const HIGH_RISK_IND = [
+  "Financial Services","Banks","Capital Markets","Consumer Finance",
+  "Diversified REITs","Health Care REITs","Hotel & Resort REITs",
+  "Industrial REITs","Mortgage REITs","Office REITs",
+  "Real Estate Management & Development","Residential REITs","Retail REITs",
+  "Specialty REITs","Legal & Consultancy Services"
+];
+
+// RESTRICTED: Requires Compliance pre-approval before proceeding.
+const RESTRICTED_IND = [
+  "Religious organizations / charities / NPOs",
+  "Virtual asset service providers (VASPs)",
+  "Entities selling controlled substances (licensed)",
+  "Businesses in high-risk activities per local regulation"
+];
+
+// STANDARD: No enhanced measures needed at industry level.
+const OK_IND = [
+  "Technology","Software","E-commerce","Retail","Manufacturing","Healthcare",
+  "Education","Consulting","Media & Entertainment","Telecommunications",
+  "Transportation & Logistics","Energy","Agriculture","Hospitality",
+  "Food & Beverage","Construction","Mining","Aerospace","Automotive",
+  "Pharmaceuticals","Insurance","Professional Services",
+  "Marketing & Advertising","Non-profit (transparent governance)",
+  "Government","Payments","Crypto Exchange","Fintech","Other"
+];
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ██  END OF EDITABLE LISTS — DO NOT EDIT BELOW THIS LINE  ██
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const ALL_COUNTRIES=[...BLOCKED,...HIGH_RISK_J,...MEDIUM_RISK_J,...OK_COUNTRIES].sort();
 const ALL_IND=[...PROHIBITED_IND,...HIGH_RISK_IND,...RESTRICTED_IND,...OK_IND];
 
 let st={country:null,countryRisk:null,industry:null,indRisk:null,rails:null,is3P:null,pobo:null};
 const trail=[];
 
-function updTrail(){document.getElementById('trail').innerHTML=trail.join(' → ')}
+function updTrail(){document.getElementById('trail').innerHTML=trail.join(' &rarr; ')}
 
 function classifyCountry(c){
   if(BLOCKED.some(b=>b.toLowerCase()===c.toLowerCase()))return'blocked';
-  if(RESTRICTED_J.some(b=>b.toLowerCase()===c.toLowerCase()))return'restricted_serve';
   if(HIGH_RISK_J.some(b=>b.toLowerCase()===c.toLowerCase()))return'high_risk';
+  if(MEDIUM_RISK_J.some(b=>b.toLowerCase()===c.toLowerCase()))return'medium_risk';
   return'standard';
 }
 function classifyInd(i){
@@ -140,7 +255,14 @@ function classifyInd(i){
 }
 
 function tagHTML(risk){
-  const m={blocked:['BLOCKED','tag-blocked'],high_risk:['HIGH RISK','tag-highrisk'],restricted_serve:['RESTRICTED (RS)','tag-highrisk'],standard:['STANDARD','tag-ok'],prohibited:['PROHIBITED','tag-blocked'],restricted:['RESTRICTED','tag-highrisk']};
+  const m={
+    blocked:['PROHIBITED','tag-blocked'],
+    high_risk:['HIGH RISK','tag-highrisk'],
+    medium_risk:['MEDIUM RISK','tag-medium'],
+    standard:['STANDARD','tag-ok'],
+    prohibited:['PROHIBITED','tag-blocked'],
+    restricted:['RESTRICTED','tag-highrisk']
+  };
   const[t,cls]=m[risk]||['UNKNOWN',''];
   return'<span class="tag '+cls+'">'+t+'</span>';
 }
@@ -163,17 +285,17 @@ function selectCountry(c,r){
 
   if(r==='blocked'){
     trail.push(c+' 🔴');updTrail();
-    res.innerHTML='<div class="match-tag" style="background:#fecaca;color:#991b1b">BLOCKED JURISDICTION</div>';
+    res.innerHTML='<div class="match-tag" style="background:#fecaca;color:#991b1b">PROHIBITED JURISDICTION</div>';
     done('s1');
-    showStop('BLOCKED — Do Not Proceed',c+' is on the Blocked Jurisdictions list. Do not proceed. Notify Compliance immediately.');
+    showStop('PROHIBITED — Do Not Proceed',c+' is a prohibited jurisdiction. Do not proceed. Notify Compliance immediately.');
     return;
   }
-  if(r==='restricted_serve'){
-    trail.push(c+' ⚠️ RS');updTrail();
-    res.innerHTML='<div class="match-tag" style="background:#fef3c7;color:#92400e">RESTRICTED — Reverse Solicitation Only</div>';
-  } else if(r==='high_risk'){
+  if(r==='high_risk'){
     trail.push(c+' ⚠️ HR');updTrail();
-    res.innerHTML='<div class="match-tag" style="background:#fef3c7;color:#92400e">HIGH RISK JURISDICTION — Packet C will apply if fiat</div>';
+    res.innerHTML='<div class="match-tag" style="background:#fef3c7;color:#92400e">HIGH RISK — EDD Required. Packet C applies if fiat.</div>';
+  } else if(r==='medium_risk'){
+    trail.push(c+' 🟡 MR');updTrail();
+    res.innerHTML='<div class="match-tag" style="background:#e0e7ff;color:#3730a3">MEDIUM RISK — Standard DD with supplementary checks.</div>';
   } else {
     trail.push(c+' ✓');updTrail();
     res.innerHTML='<div class="match-tag" style="background:#dcfce7;color:#166534">STANDARD JURISDICTION</div>';
@@ -184,11 +306,17 @@ function selectCountry(c,r){
 function filterInd(){
   var v=document.getElementById('ind-in').value.trim().toLowerCase();
   var ac=document.getElementById('ind-ac');
-  if(!v){ac.classList.remove('open');ac.innerHTML='';return}
+  if(!v){ac.classList.remove('open');ac.innerHTML='';showIndHint('');return}
   var matches=ALL_IND.filter(function(i){return i.toLowerCase().includes(v)}).slice(0,8);
-  if(!matches.length){ac.classList.remove('open');return}
+  if(!matches.length){ac.classList.remove('open');showIndHint('No matching industry — please select from the list');return}
+  showIndHint('');
   ac.innerHTML=matches.map(function(i){var r=classifyInd(i);return'<div class="ac-item" onclick="selectInd(\''+i.replace(/'/g,"\\'")+'\',\''+r+'\')">'+i+tagHTML(r)+'</div>'}).join('');
   ac.classList.add('open');
+}
+function showIndHint(msg){
+  var h=document.getElementById('ind-hint');
+  if(!h){h=document.createElement('div');h.id='ind-hint';h.style.cssText='font-size:12px;color:#ef4444;margin-top:4px';document.getElementById('ind-result').parentNode.insertBefore(h,document.getElementById('ind-result'))}
+  h.textContent=msg;
 }
 
 function selectInd(i,r){
@@ -201,7 +329,7 @@ function selectInd(i,r){
     trail.push('Industry 🔴');updTrail();
     res.innerHTML='<div class="match-tag" style="background:#fecaca;color:#991b1b">PROHIBITED SECTOR</div>';
     done('s2');
-    showStop('BLOCKED — Prohibited Sector','"'+i+'" is a prohibited sector. Do not proceed. Notify Compliance immediately.');
+    showStop('PROHIBITED — Prohibited Sector','"'+i+'" is a prohibited sector. Do not proceed. Notify Compliance immediately.');
     return;
   }
   if(r==='restricted'){
@@ -214,7 +342,7 @@ function selectInd(i,r){
   }
   if(r==='high_risk'){
     trail.push('Industry ⚠️ HR');updTrail();
-    res.innerHTML='<div class="match-tag" style="background:#fef3c7;color:#92400e">HIGH RISK INDUSTRY — Packet C will apply if fiat</div>';
+    res.innerHTML='<div class="match-tag" style="background:#fef3c7;color:#92400e">HIGH RISK INDUSTRY — Packet C applies if fiat.</div>';
   } else {
     trail.push('Industry ✓');updTrail();
     res.innerHTML='<div class="match-tag" style="background:#dcfce7;color:#166534">STANDARD INDUSTRY</div>';
@@ -257,6 +385,7 @@ function pickPOBO(v){
   done('s5');showFinal();
 }
 
+// Packet C triggers: high-risk jurisdiction OR high-risk industry (not medium)
 function isHighRisk(){return st.countryRisk==='high_risk'||st.indRisk==='high_risk'}
 
 function getPacket(){
@@ -314,6 +443,7 @@ function doReset(){
   document.getElementById('ind-in').value='';
   document.getElementById('country-result').innerHTML='';
   document.getElementById('ind-result').innerHTML='';
+  var hint=document.getElementById('ind-hint');if(hint)hint.textContent='';
   document.querySelectorAll('.card').forEach(function(c){c.classList.add('hidden');c.classList.remove('active','done');c.querySelectorAll('.btn').forEach(function(b){b.classList.remove('sel');b.disabled=false})});
   document.querySelectorAll('.phase').forEach(function(p){if(p.id!=='p1')p.classList.add('hidden')});
   document.getElementById('s1').classList.remove('hidden');
